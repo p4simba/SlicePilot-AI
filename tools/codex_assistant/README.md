@@ -37,7 +37,9 @@ Reference: https://learn.chatgpt.com/docs/app-server
 
 The editor exposes **SlicePilot AI > Assistente / Conectar ao Codex** and a
 SlicePilot AI preferences tab. The modeless native window supports connection,
-project preview and read-only advice about the current document.
+project preview, advice and explicit approval of supported global process changes.
+The user reviews before/after values, clicks **Aplicar alterações**, and can use
+**Desfazer** if the project has not changed. See the [design](../../docs/HLSD/CodexAssistant.md) for scope and validation limits.
 
 `ui_smoke.cpp` hosts the production window with a synthetic Codex subprocess.
 It does not connect to OpenAI. After building the upstream wxWidgets dependency:

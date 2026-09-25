@@ -1,6 +1,9 @@
 #include "CodexAssistant.hpp"
 #include "GUI_App.hpp"
 #include "Plater.hpp"
+#include "Tab.hpp"
+#include "MainFrame.hpp"
+#include "AssistantProposal.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/PresetBundle.hpp"
@@ -41,18 +44,59 @@ std::string live_context() {
             if (volumes.size() >= 100) throw std::runtime_error("Too many volumes");
             volumes.push_back({{"index", volumes.size()}, {"overrides", selected_settings(volume->config)}});
         }
-        objects.push_back({{"index", objects.size()}, {"printable", object->printable},
+        objects.push_back({{"index", objects.size()}, {"identity", object->id().id}, {"printable", object->printable},
             {"overrides", selected_settings(object->config)}, {"instances", instances}, {"volumes", volumes},
             {"has_height_range_overrides", !object->layer_config_ranges.empty()}});
     }
     Json result = {{"schema_version", 1}, {"source", "open_project_including_unsaved_changes"},
+        {"project_identity", app.plater()->model().id().id},
         {"global_settings", selected_settings(app.preset_bundle->full_config())}, {"objects", objects},
         {"limitations", {"No mesh, image or toolpath analysis", "No plate-specific or height-range setting resolution",
                          "Overrides are separate from global settings, not merged effective values", "No slicing estimates or physical validation"}}};
+    // An opaque generation also covers changes to settings outside the exported allowlist.
+    // Full configuration values stay local and never enter the model prompt.
+    static DynamicPrintConfig previous_config;
+    static std::string previous_context;
+    static size_t generation = 0;
+    const auto full = app.preset_bundle->full_config();
+    const auto signature = result.dump();
+    if (signature != previous_context || previous_config != full) {
+        ++generation; previous_context = signature; previous_config = full;
+    }
+    result["revision"] = generation;
     const auto serialized = result.dump(2);
     if (serialized.size() > 256 * 1024) throw std::runtime_error("Context too large");
     return serialized;
 }
+void apply_settings(const std::string& expected, const std::vector<AssistantChange>& changes) {
+    if (live_context() != expected) throw std::runtime_error("O projeto mudou. Solicite uma nova análise.");
+    auto& app = wxGetApp();
+    auto tab = app.get_tab(Preset::TYPE_PRINT);
+    if (!tab || !tab->get_config() || changes.empty() || changes.size() > 8)
+        throw std::runtime_error("Perfil de impressão indisponível.");
+    const DynamicPrintConfig original = *tab->get_config();
+    DynamicPrintConfig candidate = original;
+    auto full = app.preset_bundle->full_config();
+    validate_assistant_changes(changes);
+    for (const auto& change : changes) {
+        const auto option = original.option(change.key);
+        if (!option || option->serialize() != change.before)
+            throw std::runtime_error("O valor atual difere da proposta. Solicite uma nova análise.");
+        candidate.set_deserialize_strict(change.key, change.after);
+        full.set_deserialize_strict(change.key, change.after);
+        if (candidate.option(change.key)->serialize() != change.after)
+            throw std::runtime_error("O valor proposto não está na unidade ou formato esperado.");
+    }
+    if (!full.validate().empty())
+        throw std::runtime_error("O fatiador identificou configurações incompatíveis. Revise o perfil antes de aplicar.");
+    // All checks precede mutation. Use the normal dirty-preset and slicing notification path,
+    // without Tab::update's automatic corrections to unrelated settings.
+    *tab->get_config() = candidate;
+    tab->update_dirty();
+    tab->reload_config();
+    app.mainframe->on_config_changed(tab->get_config());
+}
+
 }
 void show_slicepilot_assistant(wxWindow* parent, bool settings) {
     static wxWeakRef<wxDialog> dialog;
@@ -75,7 +119,7 @@ void show_slicepilot_assistant(wxWindow* parent, bool settings) {
     const wxString state = wxStandardPaths::Get().GetUserLocalDataDir() + wxFILE_SEP_PATH + "slicepilot-codex";
     // Own the modeless window from the main frame, not the transient preferences.
     dialog = create_codex_assistant(parent, executable, state, live_context,
-        [](const wxString& value) { wxGetApp().app_config->set("slicepilot_codex_executable", std::string(value.ToUTF8())); wxGetApp().app_config->save(); }, settings);
+        [](const wxString& value) { wxGetApp().app_config->set("slicepilot_codex_executable", std::string(value.ToUTF8())); wxGetApp().app_config->save(); }, settings, apply_settings);
     dialog->Show();
 }
 }}

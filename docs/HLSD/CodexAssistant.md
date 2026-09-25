@@ -42,8 +42,37 @@ The agent treats project text as untrusted data and explains uncertainty.
 Threads disable shell, unified execution, hooks, apps, remote plugins, web search
 and delegation through Codex configuration. Turns use a read-only sandbox with
 restricted read roots at an empty dedicated workspace and platform defaults.
-The client does not grant execution approvals or perform tools. Advice cannot
-modify slicer settings or send a print; the UI clearly reports this boundary.
+The client does not grant execution approvals or perform tools. The model returns
+structured advice and optional proposals via `turn/start.outputSchema`. Only the
+local application can change settings, after the user clicks **Aplicar alterações**.
+The assistant cannot send a print.
+
+## Review, apply and undo
+
+The panel shows each proposed parameter, its current and proposed serialized value,
+unit and reason. Supported global process settings are layer height, wall count,
+top/bottom shell layers, sparse infill density and brim width. Printer and filament
+settings, object/volume/plate overrides and G-code cannot be modified by this flow.
+The displayed global value may be overridden for a particular object or plate.
+
+A proposal is bound to the context captured for its turn. Before applying, the UI
+and adapter recheck this snapshot. A local generation tracks full global configuration
+changes without exporting those additional settings; project/object identities and
+exported dimensions/overrides also participate. This is not a detailed mesh revision
+tracker. A new question, interruption, failure or logout discards the pending proposal.
+
+Before any mutation, the adapter rejects unknown/duplicate keys, malformed/nonfinite
+numbers, unsupported ranges, mismatched original values and noncanonical serialization.
+It builds a candidate configuration and runs Orca's full configuration validation.
+It then updates the edited process preset, marks it dirty, reloads controls and notifies
+the normal slicing configuration path. No saved preset file is overwritten.
+
+**Desfazer** reverses the most recent assistant application while the resulting snapshot
+still matches. Subsequent manual changes block undo rather than overwriting the user.
+This is an in-memory, single-level assistant undo, not a persistent history. Native
+UI tests use a synthetic Codex subprocess to verify no mutation before approval,
+one-time application, undo, stale rejection and invalid proposal values. Real account
+inference and complete slicer integration still require end-to-end validation.
 
 ## Compatibility
 

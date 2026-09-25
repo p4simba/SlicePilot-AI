@@ -4,6 +4,7 @@ project(libslic3r_gui)
 include(PrecompiledHeader)
 
 set(SLIC3R_GUI_SOURCES
+    GUI/AssistantProposal.hpp
     GUI/CodexAssistant.hpp
     GUI/CodexAssistant.cpp
     GUI/AssistantProjectContext.cpp

@@ -1,6 +1,7 @@
 // Standalone native UI test host. Compile with CodexAssistant.cpp and wxWidgets.
 // The child-process mode implements a synthetic Codex peer, never an AI service.
 #include "slic3r/GUI/CodexAssistant.hpp"
+#include "slic3r/GUI/AssistantProposal.hpp"
 #include <wx/app.h>
 #include <wx/stdpaths.h>
 #include <wx/filename.h>
@@ -35,10 +36,11 @@ static int fake_server() {
             const auto prompt = params.at("input").at(0).at("text").get<std::string>();
             if (prompt.find("synthetic_test_fixture") == std::string::npos ||
                 params.at("sandboxPolicy").at("type") != "readOnly" ||
-                params.at("approvalPolicy") != "never") return 2;
+                params.at("approvalPolicy") != "never" || !params.contains("outputSchema")) return 2;
             emit({{"id", message["id"]}, {"result", {{"turn", {{"id", "test-turn"}}}}}});
             emit({{"method", "item/agentMessage/delta"}, {"params", {{"threadId", "test-thread"},
-                {"delta", "Resposta de teste: recebi o contexto da peça de 20 mm. Nenhuma configuração foi alterada."}}}});
+                {"delta", Json({{"answer", "Resposta de teste: recebi o contexto"}, {"changes", Json::array({
+                    {{"key", "layer_height"}, {"before", "0.2"}, {"after", "0.16"}, {"reason", "Melhorar detalhes, em mm"}}})}}).dump()}}}});
             emit({{"method", "turn/completed"}, {"params", {{"threadId", "test-thread"}, {"turn", {{"status", "completed"}}}}}});
             continue;
         } else {
@@ -51,7 +53,8 @@ static int fake_server() {
 class SmokeApp : public wxApp {
     wxTimer timer{this};
     wxDialog* dialog = nullptr;
-    int stage = 0, ticks = 0;
+    int stage = 0, ticks = 0, mutations = 0;
+    std::string layer_height = "0.2";
     void click(const wxString& label) {
         auto button = dynamic_cast<wxButton*>(wxWindow::FindWindowByLabel(label, dialog));
         if (!button || !button->IsEnabled()) return;
@@ -85,19 +88,51 @@ class SmokeApp : public wxApp {
             question(dialog)->SetValue(wxString::FromUTF8("Como melhorar esta impressão de teste?")); click("Enviar pergunta"); stage = 2;
         } else if (stage == 2 && contains(dialog, wxString::FromUTF8("Análise concluída."))) {
             if (!contains(dialog, wxString::FromUTF8("Resposta de teste: recebi o contexto"))) test_exit = 1;
+            if (mutations != 0 || layer_height != "0.2") test_exit = 1;
+            click(wxString::FromUTF8("Aplicar alterações"));
+            if (mutations != 1 || layer_height != "0.16") test_exit = 1;
+            click(wxString::FromUTF8("Aplicar alterações"));
+            if (mutations != 1) test_exit = 1;
+            click("Desfazer");
+            if (mutations != 2 || layer_height != "0.2") test_exit = 1;
+            question(dialog)->SetValue("Outra proposta"); click("Enviar pergunta"); stage = 4;
+        } else if (stage == 4 && contains(dialog, wxString::FromUTF8("Análise concluída."))) {
+            layer_height = "0.24"; // A manual edit while the proposal is pending.
+            click(wxString::FromUTF8("Aplicar alterações"));
+            if (mutations != 2 || layer_height != "0.24" || !contains(dialog, "O projeto mudou")) test_exit = 1;
             click("Desconectar"); stage = 3;
         } else if (stage == 3 && contains(dialog, "Desconectado. Clique")) {
-            std::cout << "PASS: native connect, project preview, context send, streaming, completion, logout" << std::endl;
+            std::cout << "PASS: native connect, project preview, context send, streaming, completion, explicit approval, single apply, undo, stale rejection, logout" << std::endl;
             timer.Stop(); dialog->Close();
         }
     }
 public:
     bool OnInit() override {
+        using namespace Slic3r::GUI;
+        validate_assistant_changes({{"layer_height", "0.2", "0.16", "detail"}});
+        for (const auto& value : {"NaN", "inf", "0.16oops", "-1", "0", "3", "1e300"}) {
+            try { validate_assistant_changes({{"layer_height", "0.2", value, "invalid"}}); test_exit = 1; }
+            catch (const std::exception&) {}
+        }
+        for (const auto& invalid : std::vector<std::vector<AssistantChange>>{
+            {{"machine_start_gcode", "0", "1", "unsupported"}},
+            {{"wall_loops", "2", "3", "duplicate"}, {"wall_loops", "2", "4", "duplicate"}},
+            {{"sparse_infill_density", "15%", "120%", "out of range"}},
+            {{"wall_loops", "2", "2.5", "fractional count"}}}) {
+            try { validate_assistant_changes(invalid); test_exit = 1; }
+            catch (const std::exception&) {}
+        }
+
         dialog = Slic3r::GUI::create_codex_assistant(nullptr,
             wxStandardPaths::Get().GetExecutablePath(),
             wxFileName::GetTempDir() + "/slicepilot-native-ui-test",
-            [] { return Json({{"source", "synthetic_test_fixture"}, {"layer_height", "0.2"}, {"size_mm", {20, 20, 20}}}).dump(2); },
-            [](const wxString&) {});
+            [this] { return Json({{"source", "synthetic_test_fixture"}, {"layer_height", layer_height}, {"size_mm", {20, 20, 20}}}).dump(2); },
+            [](const wxString&) {}, false,
+            [this](const std::string&, const std::vector<Slic3r::GUI::AssistantChange>& changes) {
+                if (changes.size() != 1 || changes[0].key != "layer_height" || changes[0].before != layer_height)
+                    throw std::runtime_error("invalid fixture proposal");
+                layer_height = changes[0].after; ++mutations;
+            });
         dialog->SetTitle(wxString::FromUTF8("SlicePilot AI — TESTE LOCAL (sem IA)"));
         dialog->Show(); SetTopWindow(dialog);
         if (self_test) { Bind(wxEVT_TIMER, [this](wxTimerEvent&) { tick(); }); timer.Start(100); }
