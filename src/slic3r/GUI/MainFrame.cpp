@@ -47,6 +47,7 @@
 // BBS
 #include "PartPlate.hpp"
 #include "Preferences.hpp"
+#include "CodexAssistant.hpp"
 #include "Widgets/Button.hpp"
 #include "Widgets/ProgressDialog.hpp"
 #include "Widgets/StaticBox.hpp"
@@ -3609,6 +3610,12 @@ void MainFrame::init_menubar_as_editor()
         [this]() {return m_plater->is_view3D_shown();; }, this);
 
     m_menubar->Append(calib_menu,wxString::Format("&%s", _L("Calibration")));
+    auto assistant_menu = new wxMenu();
+    append_menu_item(assistant_menu, wxID_ANY, "Assistente", "SlicePilot AI",
+        [this](wxCommandEvent&) { show_slicepilot_assistant(this); });
+    append_menu_item(assistant_menu, wxID_ANY, "Conectar ao Codex", "SlicePilot AI",
+        [this](wxCommandEvent&) { show_slicepilot_assistant(this, true); });
+    m_menubar->Append(assistant_menu, "SlicePilot AI");
     if (helpMenu)
         m_menubar->Append(helpMenu, wxString::Format("&%s", _L("Help")));
     SetMenuBar(m_menubar);

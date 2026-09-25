@@ -32,3 +32,28 @@ only global values saved in the archive, not effective per-object or plate
 settings. Do not present this output as a complete live project inspection.
 
 Reference: https://learn.chatgpt.com/docs/app-server
+
+## Native UI verification
+
+The editor exposes **SlicePilot AI > Assistente / Conectar ao Codex** and a
+SlicePilot AI preferences tab. The modeless native window supports connection,
+project preview and read-only advice about the current document.
+
+`ui_smoke.cpp` hosts the production window with a synthetic Codex subprocess.
+It does not connect to OpenAI. After building the upstream wxWidgets dependency:
+
+```sh
+cmake -S tools/codex_assistant -B build/assistant-ui
+cmake --build build/assistant-ui
+ctest --test-dir build/assistant-ui --output-on-failure
+```
+
+The test requires a graphical desktop session (on Linux, a display such as
+Xvfb). Set `wxWidgets_CONFIG_EXECUTABLE` if wx-config is elsewhere. Windows
+requires the usual CMake wxWidgets library/include paths. The test exercises
+connection, live-context preview, context transmission, streaming response,
+completion and logout through real subprocess pipes. Running the executable
+without `--self-test` opens the same window for visual inspection.
+
+Real OAuth completion and an actual model answer require the user's interactive
+login and account entitlement; the synthetic test does not establish those.

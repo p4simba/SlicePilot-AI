@@ -1,4 +1,5 @@
 #include "Preferences.hpp"
+#include "CodexAssistant.hpp"
 #include "OptionsGroup.hpp"
 #include "GUI_App.hpp"
 #include "MainFrame.hpp"
@@ -2209,6 +2210,21 @@ void PreferencesDialog::create_items()
     sizer_page->Add(g_sizer, 0, wxEXPAND);
     }
 #endif // _WIN32
+
+    // SlicePilot AI connection settings are kept outside print profiles.
+    m_tab_index[PreferencesTab::Assistant] = m_pref_tabs->AppendItem("SlicePilot AI");
+    f_sizers.push_back(new wxFlexGridSizer(1, 1, v_gap, 0));
+    g_sizer = f_sizers.back();
+    g_sizer->AddGrowableCol(0, 1);
+    g_sizer->Add(create_item_title("SlicePilot AI"), 1, wxEXPAND);
+    g_sizer->Add(create_item_button("Codex", "Conectar minha conta", "", "",
+        [this]() {
+            auto parent = GetParent();
+            EndModal(wxID_OK);
+            wxGetApp().CallAfter([parent]() { show_slicepilot_assistant(parent, true); });
+        }), 0, wxEXPAND);
+    g_sizer->AddSpacer(FromDIP(10));
+    sizer_page->Add(g_sizer, 0, wxEXPAND);
 
     //////////////////////////
     //// DEVELOPER TAB

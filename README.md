@@ -3,7 +3,8 @@
 An open-source slicer project based on OrcaSlicer, with a Codex assistant integration in development.
 GitHub repository: [p4simba/SlicePilot-AI](https://github.com/p4simba/SlicePilot-AI).
 
-The assistant is currently a development probe; the integrated UI is not yet available.
+The source includes a native assistant window, Codex connection settings, and live project context.
+This is a development version; no ready-to-install SlicePilot AI release is published yet.
 See [integration development notes](tools/codex_assistant/README.md).
 
 The upstream OrcaSlicer documentation and attribution follow below.
