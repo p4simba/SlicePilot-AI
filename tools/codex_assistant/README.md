@@ -1,4 +1,4 @@
-# Codex integration development probe
+# SlicePilot AI — Codex integration development probe
 
 This standard-library Python tool exercises the official Codex app-server
 authentication protocol and reads an allowlisted subset of saved Orca 3MF

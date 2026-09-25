@@ -41,7 +41,7 @@ class CodexClient:
         self.reader.start()
         try:
             self.request("initialize", {"clientInfo": {
-                "name": "orca_assistant_probe", "title": "Slicer Assistant Probe",
+                "name": "orca_assistant_probe", "title": "SlicePilot AI Development Probe",
                 "version": "0.1.0",
             }})
             self._send({"method": "initialized", "params": {}})

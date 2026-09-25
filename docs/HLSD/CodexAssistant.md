@@ -1,4 +1,4 @@
-# Codex assistant integration boundary
+# SlicePilot AI — Codex assistant integration boundary
 
 The development probe in `tools/codex_assistant` communicates with an official
 local Codex app-server over newline-delimited JSON on standard input/output.
