@@ -141,7 +141,7 @@ class AssistantDialog final : public wxDialog {
         pending[++sequence] = {method, Clock::now() + std::chrono::seconds(30)};
         write({{"id", sequence}, {"method", method}, {"params", params}});
     }
-    void start() {
+    void start(bool initiate_login = true) {
         if (process) { busy = true; controls(); request("account/login/start", {{"type", "chatgpt"}}); return; }
         const auto executable = path->GetValue();
         if (executable.empty() || !wxFileName::FileExists(executable)) {
@@ -164,9 +164,9 @@ class AssistantDialog final : public wxDialog {
         pid = wxExecute(argv, wxEXEC_ASYNC | wxEXEC_MAKE_GROUP_LEADER, process, &env);
         if (pid <= 0) { delete process; process = nullptr; fail(wxString::FromUTF8("Não foi possível iniciar o Codex.")); return; }
         save_executable(executable);
-        login_requested = true;
+        login_requested = initiate_login;
         busy = true;
-        set_status(wxString::FromUTF8("Conectando ao Codex…"));
+        set_status(wxString::FromUTF8("Verificando a conta do Codex…"));
         timer.Start(50);
         request("initialize", {{"clientInfo", {{"name", "slicepilot_ai"}, {"title", "SlicePilot AI"}, {"version", "0.1.0"}}}});
         controls();
@@ -233,6 +233,10 @@ class AssistantDialog final : public wxDialog {
                     request("account/login/start", {{"type", "chatgpt"}}); return;
                 }
                 login_requested = false;
+                if (connected && history->GetValue().StartsWith(wxString::FromUTF8("Conecte sua conta na aba Conexão"))) {
+                    history->Clear();
+                    history->AppendText(wxString::FromUTF8("Sua conta Codex está conectada. Faça uma pergunta sobre o projeto aberto para começar.\n"));
+                }
                 set_status(connected ? wxString::FromUTF8("Codex conectado à sua conta.") : wxString::FromUTF8("Desconectado. Clique em Conectar para entrar na sua conta."));
             } else if (method == "account/login/start") {
                 login_id = result.at("loginId").get<std::string>();
@@ -388,6 +392,9 @@ public:
         });
         Bind(wxEVT_CLOSE_WINDOW, [this](wxCloseEvent&) { stop(); Destroy(); });
         controls();
+        // Probe the isolated Codex account on opening. Do not launch OAuth unless
+        // the user explicitly clicks Connect.
+        start(false);
     }
     void select_settings() { tabs->SetSelection(1); }
     ~AssistantDialog() override { stop(); }

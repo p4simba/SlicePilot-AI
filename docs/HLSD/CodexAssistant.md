@@ -12,7 +12,9 @@ same UI with a synthetic subprocess for offline verification.
 The selected official Codex executable runs `app-server --listen stdio://`.
 The native client implements initialization, request IDs, deadlines, account
 status, browser login, cancellation, logout, ephemeral threads and streamed
-turns. A wx timer drains stdout/stderr without waiting for network responses.
+turns. Opening the assistant probes the isolated account without starting OAuth;
+a connected account replaces the initial sign-in message in the conversation. A
+wx timer drains stdout/stderr without waiting for network responses.
 Unexpected server tool and approval requests are rejected. stderr and raw
 error payloads are not persisted by the client. Closing the window terminates
 its child process group and discards the in-memory conversation.
