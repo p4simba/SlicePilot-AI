@@ -59,3 +59,33 @@ without `--self-test` opens the same window for visual inspection.
 
 Real OAuth completion and an actual model answer require the user's interactive
 login and account entitlement; the synthetic test does not establish those.
+
+## Local macOS application build
+
+The macOS bundle uses the SlicePilot AI display name and a separate application
+identifier and settings directory. Translation catalogs retain their upstream
+OrcaSlicer names. Embedded Python disables bytecode writes so imports cannot
+modify sealed resources inside a signed application.
+
+For Apple Silicon with Xcode 26.5, build dependencies with the SDK path exported,
+then configure the application. Xcode enables a legacy integer-conversion warning
+that needs demotion for this upstream revision:
+
+```sh
+export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+./build_release_macos.sh -d -a arm64 -j4
+cmake -S . -B build/arm64 -G Xcode -DORCA_TOOLS=ON \
+  -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 \
+  -DCMAKE_OSX_DEPLOYMENT_TARGET=11.3 \
+  -DCMAKE_IGNORE_PREFIX_PATH='/opt/local:/usr/local:/opt/homebrew' \
+  -DCMAKE_CXX_FLAGS=-Wno-error=shorten-64-to-32
+./build_release_macos.sh -s -b -a arm64 -j4
+mkdir -p build/release
+ditto build/arm64/OrcaSlicer/OrcaSlicer.app 'build/release/SlicePilot AI.app'
+codesign --force --deep --sign - 'build/release/SlicePilot AI.app'
+codesign --verify --deep --strict 'build/release/SlicePilot AI.app'
+```
+
+Dependency builds also require the documented upstream prerequisites, including
+Autotools and `makeinfo` from Texinfo on PATH. The local signature is ad hoc;
+this is a development build, not an Apple-notarized release.

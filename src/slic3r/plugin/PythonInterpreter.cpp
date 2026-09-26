@@ -542,6 +542,9 @@ bool PythonInterpreter::initialize()
         // Set Python home - this is the prefix where Python libraries are located
         PyConfig config;
         PyConfig_InitPythonConfig(&config);
+        // Bundled modules live inside the signed macOS application. Importing
+        // them must not rewrite bytecode caches and invalidate the bundle seal.
+        config.write_bytecode = 0;
         // Do not let the host process's PYTHONPATH or user site-packages override the bundled
         // runtime used by plugins.
         config.use_environment    = 0;
